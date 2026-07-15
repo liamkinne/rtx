@@ -11,10 +11,14 @@ use crate::motor::Motor;
 use crate::motor::PidGains;
 use core::mem::MaybeUninit;
 use embassy_usb::UsbDevice;
-use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
+use embassy_usb::class::cdc_acm::CdcAcmClass;
+use embassy_usb::class::cdc_acm::State;
+use hal::adc;
+use hal::adc::AdcChannel as _;
 use hal::bind_interrupts;
 use hal::gpio::Level;
 use hal::gpio::Output;
+use hal::gpio::Pull;
 use hal::gpio::Speed;
 use hal::i2c;
 use hal::mode::Async;
@@ -22,7 +26,8 @@ use hal::peripherals::*;
 use hal::time::Hertz;
 use hal::timer::qei::Config;
 use hal::timer::qei::Qei;
-use hal::{gpio::Pull, timer::qei::QeiMode, usb::Driver};
+use hal::timer::qei::QeiMode;
+use hal::usb::Driver;
 use pwm_pca9685::Address;
 use pwm_pca9685::Channel;
 use pwm_pca9685::Pca9685;
@@ -36,11 +41,15 @@ pub mod pac {
     pub use embassy_stm32::pac::*;
 }
 
+const MOTORS: usize = 7;
+const ADC_BUFFERS: usize = MOTORS * 40;
+
 bind_interrupts!(struct Irqs {
     I2C2_ER => i2c::ErrorInterruptHandler<I2C2>;
     I2C2_EV => i2c::EventInterruptHandler<I2C2>;
     DMA1_CHANNEL1 => hal::dma::InterruptHandler<DMA1_CH1>;
     DMA1_CHANNEL2 => hal::dma::InterruptHandler<DMA1_CH2>;
+    DMA1_CHANNEL3 => hal::dma::InterruptHandler<DMA1_CH3>;
     USB_LP => hal::usb::InterruptHandler<USB>;
 });
 
@@ -70,6 +79,7 @@ mod app {
         motor_6: Motor<'static, TIM8, I2C>,
         motor_7: Motor<'static, TIM20, I2C>,
         pwm_oe: Output<'static>,
+        adc1: adc::RingBufferedAdc<'static, ADC1>,
     }
 
     #[init(local = [
@@ -78,6 +88,7 @@ mod app {
         usb_bos_descriptor: [u8; 256] = [0; 256],
         usb_control_buf: [u8; 64] = [0; 64],
         usb_state: State<'static> = State::new(),
+        adc1_dma_buf: [u16; ADC_BUFFERS] = [0; _],
     ])]
     fn init(cx: init::Context) -> (Shared, Local) {
         let mut config = hal::Config::default();
@@ -107,6 +118,33 @@ mod app {
 
         let led_status = Output::new(p.PE15, Level::Low, Speed::Low);
         let led_error = Output::new(p.PE14, Level::Low, Speed::Low);
+
+        let adc1 = adc::Adc::new(p.ADC1, adc::AdcConfig::default());
+        let isense_1: adc::AnyAdcChannel<'static, ADC1> = p.PB1.degrade_adc();
+        let isense_2: adc::AnyAdcChannel<'static, ADC1> = p.PA3.degrade_adc();
+        let isense_3: adc::AnyAdcChannel<'static, ADC1> = p.PA2.degrade_adc();
+        let isense_4: adc::AnyAdcChannel<'static, ADC1> = p.PC3.degrade_adc();
+        let isense_5: adc::AnyAdcChannel<'static, ADC1> = p.PC2.degrade_adc();
+        let isense_6: adc::AnyAdcChannel<'static, ADC1> = p.PC1.degrade_adc();
+        let isense_7: adc::AnyAdcChannel<'static, ADC1> = p.PC0.degrade_adc();
+        let sample_time = adc::SampleTime::CYCLES640_5;
+        let adc1 = adc1.into_ring_buffered(
+            p.DMA1_CH3,
+            cx.local.adc1_dma_buf,
+            Irqs,
+            [
+                (isense_1, sample_time),
+                (isense_2, sample_time),
+                (isense_3, sample_time),
+                (isense_4, sample_time),
+                (isense_5, sample_time),
+                (isense_6, sample_time),
+                (isense_7, sample_time),
+            ]
+            .into_iter(),
+            adc::CONTINUOUS,
+            adc::Exten::RISING_EDGE,
+        );
 
         let config = Config {
             ch1_pull: Pull::Up,
@@ -175,6 +213,7 @@ mod app {
                 motor_6,
                 motor_7,
                 pwm_oe,
+                adc1,
             },
         )
     }
