@@ -1,11 +1,16 @@
 #![no_std]
 #![no_main]
 
+mod motor;
+
 use defmt_rtt as _;
 use embassy_stm32 as hal;
 use panic_probe as _;
 
+use crate::motor::Motor;
+use crate::motor::PidGains;
 use core::mem::MaybeUninit;
+use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use hal::bind_interrupts;
 use hal::gpio::Level;
@@ -17,6 +22,10 @@ use hal::peripherals::*;
 use hal::time::Hertz;
 use hal::timer::qei::Config;
 use hal::timer::qei::Qei;
+use hal::{gpio::Pull, timer::qei::QeiMode, usb::Driver};
+use pwm_pca9685::Address;
+use pwm_pca9685::Channel;
+use pwm_pca9685::Pca9685;
 use rtic_monotonics::Monotonic;
 use rtic_monotonics::systick::prelude::*;
 use rtic_monotonics::systick_monotonic;
@@ -40,10 +49,9 @@ defmt::timestamp!("{=u32:tus}", Mono::now().duration_since_epoch().to_micros());
 
 #[rtic::app(device = pac, peripherals = false)]
 mod app {
-    use embassy_stm32::usb::Driver;
-    use embassy_usb::UsbDevice;
-
     use super::*;
+
+    type I2C = i2c::I2c<'static, Async, i2c::Master>;
 
     #[shared]
     struct Shared {}
@@ -54,10 +62,18 @@ mod app {
         led_error: Output<'static>,
         usb_class: CdcAcmClass<'static, Driver<'static, USB>>,
         usb_device: UsbDevice<'static, Driver<'static, USB>>,
+        motor_1: Motor<'static, TIM1, I2C>,
+        motor_2: Motor<'static, TIM2, I2C>,
+        motor_3: Motor<'static, TIM3, I2C>,
+        motor_4: Motor<'static, TIM4, I2C>,
+        motor_5: Motor<'static, TIM5, I2C>,
+        motor_6: Motor<'static, TIM8, I2C>,
+        motor_7: Motor<'static, TIM20, I2C>,
+        pwm_oe: Output<'static>,
     }
 
     #[init(local = [
-        i2c2_arbiter: MaybeUninit<Arbiter<i2c::I2c<'static, Async, i2c::Master>>> = MaybeUninit::uninit(),
+        pca9685: MaybeUninit<Arbiter<Pca9685<I2C>>> = MaybeUninit::uninit(),
         usb_config_descriptor: [u8; 256] = [0; 256],
         usb_bos_descriptor: [u8; 256] = [0; 256],
         usb_control_buf: [u8; 64] = [0; 64],
@@ -92,21 +108,39 @@ mod app {
         let led_status = Output::new(p.PE15, Level::Low, Speed::Low);
         let led_error = Output::new(p.PE14, Level::Low, Speed::Low);
 
-        let qei1 = Qei::new(p.TIM1, p.PE9, p.PE11, Config::default());
-        let qei2 = Qei::new(p.TIM2, p.PD3, p.PD4, Config::default());
-        let qei3 = Qei::new(p.TIM3, p.PA6, p.PA7, Config::default());
-        let qei4 = Qei::new(p.TIM4, p.PD12, p.PD13, Config::default());
-        let qei5 = Qei::new(p.TIM5, p.PA0, p.PA1, Config::default());
-        let qei6 = Qei::new(p.TIM8, p.PC6, p.PC7, Config::default());
-        let qei7 = Qei::new(p.TIM20, p.PE2, p.PE3, Config::default());
+        let config = Config {
+            ch1_pull: Pull::Up,
+            ch2_pull: Pull::Up,
+            mode: QeiMode::Mode1,
+            ..Default::default()
+        };
+        let qei1 = Qei::new(p.TIM1, p.PE9, p.PE11, config);
+        let qei2 = Qei::new(p.TIM2, p.PD3, p.PD4, config);
+        let qei3 = Qei::new(p.TIM3, p.PA6, p.PA7, config);
+        let qei4 = Qei::new(p.TIM4, p.PD12, p.PD13, config);
+        let qei5 = Qei::new(p.TIM5, p.PA0, p.PA1, config);
+        let qei6 = Qei::new(p.TIM8, p.PC6, p.PC7, config);
+        let qei7 = Qei::new(p.TIM20, p.PE2, p.PE3, config);
 
         let i2c2 = hal::i2c::I2c::new(p.I2C2, p.PA9, p.PA8, p.DMA1_CH1, p.DMA1_CH2, Irqs, {
             let mut cfg = hal::i2c::Config::default();
             cfg.scl_pullup = true;
             cfg.sda_pullup = true;
+            cfg.gpio_speed = Speed::Low;
+            cfg.frequency = Hertz::khz(100);
             cfg
         });
-        let _ = cx.local.i2c2_arbiter.write(Arbiter::new(i2c2));
+        let pca9685 = pwm_pca9685::Pca9685::new(i2c2, Address::default()).unwrap();
+        let pwm = cx.local.pca9685.write(Arbiter::new(pca9685));
+        let pwm_oe = Output::new(p.PE1, Level::Low, Speed::Low);
+
+        let motor_1 = Motor::new(qei1, pwm, Channel::C13, Channel::C12);
+        let motor_2 = Motor::new(qei2, pwm, Channel::C10, Channel::C11);
+        let motor_3 = Motor::new(qei3, pwm, Channel::C8, Channel::C9);
+        let motor_4 = Motor::new(qei4, pwm, Channel::C6, Channel::C7);
+        let motor_5 = Motor::new(qei5, pwm, Channel::C4, Channel::C5);
+        let motor_6 = Motor::new(qei6, pwm, Channel::C2, Channel::C3);
+        let motor_7 = Motor::new(qei7, pwm, Channel::C0, Channel::C1);
 
         let usb = hal::usb::Driver::new(p.USB, Irqs, p.PA12, p.PA11);
         let mut config = embassy_usb::Config::new(0x0483, 0x5740);
@@ -133,6 +167,14 @@ mod app {
                 led_error,
                 usb_class,
                 usb_device,
+                motor_1,
+                motor_2,
+                motor_3,
+                motor_4,
+                motor_5,
+                motor_6,
+                motor_7,
+                pwm_oe,
             },
         )
     }

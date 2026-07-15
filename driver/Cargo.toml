@@ -18,3 +18,5 @@ embassy-stm32 = { version = "0.6.0", features = [
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
 embassy-usb = { version = "0.6.0", features = ["defmt"] }
+pwm-pca9685 = { version = "1.0.0", features = ["async"] }
+embedded-hal-async = "1.0.0"
