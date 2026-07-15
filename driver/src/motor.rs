@@ -151,7 +151,6 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
             // yields the shortest signed distance (in `[-32768, 32767]`)
             // from `position` to `setpoint` around the 16-bit circle.
             let error = setpoint.wrapping_sub(position) as i16 as i32;
-            defmt::info!("Pos: {}, Error: {}", position, error);
 
             if error.unsigned_abs() <= tolerance as u32 {
                 break;
