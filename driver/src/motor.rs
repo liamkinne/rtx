@@ -61,6 +61,8 @@ pub struct Motor<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> {
 impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     /// The period between control loop iterations, in milliseconds.
     const CONTROL_PERIOD_MS: u32 = 10;
+    /// Setpoint tolerance.
+    const TOLERANCE: u32 = 5;
 
     /// Creates a new motor instance.
     pub fn new(
@@ -125,16 +127,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     /// is opposite to the motor's wiring polarity for a given motor, so a
     /// positive PID output would otherwise drive the position further from
     /// (rather than towards) the setpoint.
-    ///
-    /// This runs until the motor settles within `tolerance` of `setpoint`,
-    /// at which point the motor is stopped and the function returns.
-    pub async fn run_to_position(
-        &self,
-        setpoint: u16,
-        gains: PidGains,
-        max_speed: f32,
-        tolerance: u16,
-    ) {
+    pub async fn run_to_position(&self, setpoint: u16, gains: PidGains, max_speed: f32) {
         let dt_secs = Self::CONTROL_PERIOD_MS as f32 / 1000.0;
 
         let max_speed = max_speed.clamp(0.0, 1.0);
@@ -152,7 +145,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
             // from `position` to `setpoint` around the 16-bit circle.
             let error = setpoint.wrapping_sub(position) as i16 as i32;
 
-            if error.unsigned_abs() <= tolerance as u32 {
+            if error.unsigned_abs() <= Self::TOLERANCE {
                 break;
             }
 
