@@ -16,6 +16,7 @@ use embassy_usb::class::cdc_acm::State;
 use hal::adc;
 use hal::adc::AdcChannel as _;
 use hal::bind_interrupts;
+use hal::can;
 use hal::gpio::Level;
 use hal::gpio::Output;
 use hal::gpio::Pull;
@@ -51,6 +52,8 @@ bind_interrupts!(struct Irqs {
     DMA1_CHANNEL2 => hal::dma::InterruptHandler<DMA1_CH2>;
     DMA1_CHANNEL3 => hal::dma::InterruptHandler<DMA1_CH3>;
     USB_LP => hal::usb::InterruptHandler<USB>;
+    FDCAN1_IT0 => can::IT0InterruptHandler<FDCAN1>;
+    FDCAN1_IT1 => can::IT1InterruptHandler<FDCAN1>;
 });
 
 systick_monotonic!(Mono, 10_000);
@@ -80,6 +83,7 @@ mod app {
         motor_7: Motor<'static, TIM20, I2C>,
         pwm_oe: Output<'static>,
         adc1: adc::RingBufferedAdc<'static, ADC1>,
+        can: can::Can<'static>,
     }
 
     #[init(local = [
@@ -196,6 +200,14 @@ mod app {
         let usb_class = CdcAcmClass::new(&mut builder, cx.local.usb_state, 64);
         let usb_device = builder.build();
 
+        let mut can = can::CanConfigurator::new(p.FDCAN1, p.PD0, p.PD1, Irqs);
+        can.properties().set_extended_filter(
+            can::filter::ExtendedFilterSlot::_0,
+            can::filter::ExtendedFilter::accept_all_into_fifo0(),
+        );
+        can.set_bitrate(500_000);
+        let can = can.into_normal_mode();
+
         usb::spawn().unwrap();
 
         (
@@ -214,6 +226,7 @@ mod app {
                 motor_7,
                 pwm_oe,
                 adc1,
+                can,
             },
         )
     }
