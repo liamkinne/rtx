@@ -3,6 +3,9 @@
 pub struct LineReader<const N: usize> {
     buf: heapless::Vec<u8, N>,
     ended: bool,
+    /// Length of the completed line currently sitting at the front of `buf`.
+    /// Only meaningful when `ended` is true.
+    line_len: usize,
 }
 
 impl<const N: usize> LineReader<N> {
@@ -10,25 +13,36 @@ impl<const N: usize> LineReader<N> {
         Self {
             buf: heapless::Vec::new(),
             ended: false,
+            line_len: 0,
         }
     }
 
     /// Feed me data.
     pub fn feed(&mut self, data: &[u8]) -> Result<Option<&[u8]>, Overflow> {
         if self.ended {
-            self.buf.clear();
+            // Only discard the completed line; any bytes buffered after it are kept.
+            self.buf.copy_within(self.line_len.., 0);
+            let new_len = self.buf.len() - self.line_len;
+            self.buf.truncate(new_len);
             self.ended = false;
+            self.line_len = 0;
         }
 
-        for &b in data {
+        let mut iter = data.iter();
+        while let Some(&b) = iter.next() {
             match b {
                 b'\n' | b'\r' => {
                     // strip trailing \r if present (CRLF)
                     if !self.buf.is_empty() && self.buf.last() == Some(&b'\r') {
                         let _ = self.buf.pop();
                     }
+                    self.line_len = self.buf.len();
                     self.ended = true;
-                    return Ok(Some(&self.buf));
+                    // Buffer remaining bytes so they start the next line.
+                    for &r in iter.as_slice() {
+                        self.buf.push(r).map_err(|_| Overflow)?;
+                    }
+                    return Ok(Some(&self.buf[..self.line_len]));
                 }
                 _ => self.buf.push(b).map_err(|_| Overflow)?,
             }
@@ -156,6 +170,17 @@ mod tests {
     fn new_reader_is_not_ended() {
         let r: LineReader<64> = LineReader::new();
         assert_eq!(r.ended, false);
+        assert_eq!(r.line_len, 0);
         assert_eq!(r.buf.len(), 0);
+    }
+
+    #[test]
+    fn bytes_after_newline_in_same_feed_start_next_line() {
+        // "first\nsec" in one call: first line is returned, "sec" stays buffered.
+        let mut r: LineReader<64> = LineReader::new();
+        assert_eq!(r.feed(b"first\nsec").unwrap(), Some(&b"first"[..]));
+        // On the next feed the buffer should already contain "sec", so appending
+        // "ond\n" completes the second line.
+        assert_eq!(r.feed(b"ond\n").unwrap(), Some(&b"second"[..]));
     }
 }
