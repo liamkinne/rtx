@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod gcode;
 mod motor;
 
 use defmt_rtt as _;
@@ -13,6 +14,7 @@ use core::mem::MaybeUninit;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::CdcAcmClass;
 use embassy_usb::class::cdc_acm::State;
+use gcode::*;
 use hal::adc;
 use hal::adc::AdcChannel as _;
 use hal::bind_interrupts;
@@ -209,6 +211,7 @@ mod app {
         let can = can.into_normal_mode();
 
         usb::spawn().unwrap();
+        gcode::spawn().unwrap();
 
         (
             Shared {},
@@ -252,5 +255,10 @@ mod app {
     #[task(local = [usb_device])]
     async fn usb(cx: usb::Context) {
         cx.local.usb_device.run().await
+    }
+
+    extern "Rust" {
+        #[task(local = [usb_class, packet: [u8; 64] = [0; _]])]
+        async fn gcode(cx: gcode::Context);
     }
 }
