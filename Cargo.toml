@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["driver"]
+members = ["driver", "line-reader"]
+
+[workspace.dependencies]
+line-reader = { path = "line-reader" }
+
+heapless = { version = "0.9.3", features = ["defmt"] }
+defmt = "1.1.0"
