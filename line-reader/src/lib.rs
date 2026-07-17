@@ -22,7 +22,7 @@ impl<const N: usize> LineReader<N> {
 
         for &b in data {
             match b {
-                b'\n' => {
+                b'\n' | b'\r' => {
                     // strip trailing \r if present (CRLF)
                     if !self.buf.is_empty() && self.buf.last() == Some(&b'\r') {
                         let _ = self.buf.pop();
