@@ -105,8 +105,9 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     }
 
     /// Returns the current, unitless quadrature encoder count.
-    pub fn position(&self) -> u16 {
-        self.qei.count()
+    pub fn position(&self) -> i16 {
+        // use as signed so we're centred around zero.
+        self.qei.count() as i16
     }
 
     /// Resets the quadrature encoder count back to zero.
