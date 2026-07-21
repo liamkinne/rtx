@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 line-reader.workspace = true
-defmt = "1.1.0"
+nc.workspace = true
+defmt.workspace = true
+ufmt.workspace = true
+heapless.workspace = true
 defmt-rtt = "1.2.0"
 rtic = { version = "2.2.0", features = ["thumbv7-backend"] }
 rtic-monotonics = { version = "2.1.0", features = ["cortex-m-systick", "defmt"] }
@@ -22,3 +25,4 @@ embassy-usb = { version = "0.6.0", features = ["defmt"] }
 pwm-pca9685 = { version = "1.0.0", features = ["async"] }
 embedded-hal-async = "1.0.0"
 gcode = { version = "0.7.0", default-features = false }
+num-traits = { version = "0.2.19", default-features = false }
