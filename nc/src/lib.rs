@@ -58,3 +58,12 @@ impl ufmt::uDisplay for StatusReport {
         f.write_str(">")
     }
 }
+
+/// Unit of measurement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unit {
+    /// Millimeters
+    Mm,
+    /// Degrees
+    Deg,
+}
