@@ -84,7 +84,17 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         pwm.set_prescale(100).await.unwrap();
         pwm.enable().await.unwrap();
         pwm.set_channel_on(self.ch_a, 0).await.unwrap();
+        pwm.set_channel_off(self.ch_a, 0).await.unwrap();
         pwm.set_channel_on(self.ch_b, 0).await.unwrap();
+        pwm.set_channel_off(self.ch_b, 0).await.unwrap();
+    }
+
+    pub async fn brake(&self) {
+        let mut pwm = self.pwm.access().await;
+        pwm.set_channel_on(self.ch_a, 4095).await.unwrap();
+        pwm.set_channel_off(self.ch_a, 4095).await.unwrap();
+        pwm.set_channel_on(self.ch_b, 4095).await.unwrap();
+        pwm.set_channel_off(self.ch_b, 4095).await.unwrap();
     }
 
     /// Sets the motor speed.
@@ -100,7 +110,9 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         let (duty_a, duty_b) = if speed >= 0.0 { (duty, 0) } else { (0, duty) };
 
         let mut pwm = self.pwm.access().await;
+        pwm.set_channel_on(self.ch_a, 0).await.unwrap();
         pwm.set_channel_off(self.ch_a, duty_a).await.unwrap();
+        pwm.set_channel_on(self.ch_b, 0).await.unwrap();
         pwm.set_channel_off(self.ch_b, duty_b).await.unwrap();
     }
 
@@ -156,6 +168,6 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
             Mono::delay(Self::CONTROL_PERIOD_MS.millis()).await;
         }
 
-        self.set(0.0).await;
+        self.brake().await;
     }
 }
