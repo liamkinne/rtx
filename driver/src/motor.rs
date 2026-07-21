@@ -128,14 +128,14 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     /// is opposite to the motor's wiring polarity for a given motor, so a
     /// positive PID output would otherwise drive the position further from
     /// (rather than towards) the setpoint.
-    pub async fn run_to_position(&self, setpoint: u16, gains: PidGains, max_speed: f32) {
+    pub async fn run_to_position(&self, setpoint: i16, gains: PidGains, max_speed: f32) {
         let dt_secs = Self::CONTROL_PERIOD_MS as f32 / 1000.0;
 
         let max_speed = max_speed.clamp(0.0, 1.0);
         let mut pid = Pid::new(gains);
 
         loop {
-            let position = self.qei.count();
+            let position = self.qei.count() as i16;
             // The QEI counter is a free-running 16-bit counter that wraps
             // around (both forwards and backwards). Computing a plain
             // `setpoint - position` difference breaks down across a wrap
@@ -144,7 +144,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
             // `u16` space and reinterpret it as a signed `i16`, which
             // yields the shortest signed distance (in `[-32768, 32767]`)
             // from `position` to `setpoint` around the 16-bit circle.
-            let error = setpoint.wrapping_sub(position) as i16 as i32;
+            let error = setpoint.wrapping_sub(position) as i32;
 
             if error.unsigned_abs() <= Self::TOLERANCE {
                 break;
