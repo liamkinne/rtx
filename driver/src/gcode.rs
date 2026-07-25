@@ -12,8 +12,8 @@ use embassy_stm32::peripherals::USB;
 use embassy_stm32::usb::Driver;
 use embassy_usb::class::cdc_acm::CdcAcmClass;
 use embassy_usb::driver::EndpointError;
-use line_reader::LineReader;
 use nc::ACK;
+use nc::lines::LineReader;
 
 const CONFIG: &str = r#"board: RTX driver
 name: UMI RTX

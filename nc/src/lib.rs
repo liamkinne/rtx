@@ -1,5 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
+pub mod lines;
+
 /// Ack response.
 pub const ACK: &str = "ok\n";
 pub const STATUS_REPORT: &[u8] = &[b'?'];

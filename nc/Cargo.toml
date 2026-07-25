@@ -7,3 +7,4 @@ edition = "2024"
 defmt.workspace = true
 ufmt.workspace = true
 ufmt_float.workspace = true
+heapless.workspace = true

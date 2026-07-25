@@ -1,9 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["driver", "line-reader", "motion", "nc"]
+members = ["driver", "motion", "nc"]
 
 [workspace.dependencies]
-line-reader = { path = "line-reader" }
 motion = { path = "motion" }
 nc = { path = "nc" }
 
