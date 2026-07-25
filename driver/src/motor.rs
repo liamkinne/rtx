@@ -9,48 +9,6 @@ use rtic_monotonics::Monotonic;
 use rtic_monotonics::systick::prelude::*;
 use rtic_sync::arbiter::Arbiter;
 
-/// Tunable gains for the position PID control loop.
-#[derive(Clone, Copy, Debug)]
-pub struct PidGains {
-    /// Proportional gain.
-    pub kp: f32,
-    /// Integral gain.
-    pub ki: f32,
-    /// Derivative gain.
-    pub kd: f32,
-}
-
-/// A simple PID controller operating on `f32` error values.
-struct Pid {
-    gains: PidGains,
-    integral: f32,
-    prev_error: f32,
-}
-
-impl Pid {
-    fn new(gains: PidGains) -> Self {
-        Self {
-            gains,
-            integral: 0.0,
-            prev_error: 0.0,
-        }
-    }
-
-    /// Feeds a new error value (and the elapsed time in seconds since the
-    /// last update) into the controller, returning the control output.
-    fn update(&mut self, error: f32, dt_secs: f32) -> f32 {
-        self.integral += error * dt_secs;
-        let derivative = if dt_secs > 0.0 {
-            (error - self.prev_error) / dt_secs
-        } else {
-            0.0
-        };
-        self.prev_error = error;
-
-        self.gains.kp * error + self.gains.ki * self.integral + self.gains.kd * derivative
-    }
-}
-
 pub struct Motor<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> {
     qei: Qei<'d, T>,
     pwm: &'d Arbiter<Pca9685<I2C>>,
@@ -140,11 +98,11 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     /// is opposite to the motor's wiring polarity for a given motor, so a
     /// positive PID output would otherwise drive the position further from
     /// (rather than towards) the setpoint.
-    pub async fn run_to_position(&self, setpoint: i16, gains: PidGains, max_speed: f32) {
+    pub async fn run_to_position(&self, setpoint: i16, gains: motion::pid::Gains, max_speed: f32) {
         let dt_secs = Self::CONTROL_PERIOD_MS as f32 / 1000.0;
 
         let max_speed = max_speed.clamp(0.0, 1.0);
-        let mut pid = Pid::new(gains);
+        let mut pid = motion::pid::Pid::new(gains);
 
         loop {
             let position = self.qei.count() as i16;

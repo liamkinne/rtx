@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 line-reader.workspace = true
+motion.workspace = true
 nc.workspace = true
 defmt.workspace = true
 ufmt.workspace = true

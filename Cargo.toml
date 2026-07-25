@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["driver", "line-reader", "nc"]
+members = ["driver", "line-reader", "motion", "nc"]
 
 [workspace.dependencies]
 line-reader = { path = "line-reader" }
+motion = { path = "motion" }
 nc = { path = "nc" }
 
 heapless = { version = "0.9.3", features = ["defmt", "ufmt"] }

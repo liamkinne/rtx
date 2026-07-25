@@ -9,7 +9,6 @@ use embassy_stm32 as hal;
 use panic_probe as _;
 
 use crate::motor::Motor;
-use crate::motor::PidGains;
 use core::mem::MaybeUninit;
 use embassy_usb::UsbDevice;
 use embassy_usb::class::cdc_acm::CdcAcmClass;
