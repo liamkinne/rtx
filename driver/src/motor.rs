@@ -12,8 +12,7 @@ use rtic_sync::arbiter::Arbiter;
 pub struct Motor<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> {
     qei: Qei<'d, T>,
     pwm: &'d Arbiter<Pca9685<I2C>>,
-    ch_a: Channel,
-    ch_b: Channel,
+    channels: (Channel, Channel),
 }
 
 impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
@@ -26,33 +25,27 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     pub fn new(
         qei: Qei<'d, T>,
         pwm: &'d Arbiter<Pca9685<I2C>>,
-        ch_a: Channel,
-        ch_b: Channel,
+        channels: (Channel, Channel),
     ) -> Self {
-        Self {
-            qei,
-            pwm,
-            ch_a,
-            ch_b,
-        }
+        Self { qei, pwm, channels }
     }
 
     pub async fn setup(&self) {
         let mut pwm = self.pwm.access().await;
         pwm.set_prescale(100).await.unwrap();
         pwm.enable().await.unwrap();
-        pwm.set_channel_on(self.ch_a, 0).await.unwrap();
-        pwm.set_channel_off(self.ch_a, 0).await.unwrap();
-        pwm.set_channel_on(self.ch_b, 0).await.unwrap();
-        pwm.set_channel_off(self.ch_b, 0).await.unwrap();
+        pwm.set_channel_on(self.channels.0, 0).await.unwrap();
+        pwm.set_channel_off(self.channels.0, 0).await.unwrap();
+        pwm.set_channel_on(self.channels.1, 0).await.unwrap();
+        pwm.set_channel_off(self.channels.1, 0).await.unwrap();
     }
 
     pub async fn brake(&self) {
         let mut pwm = self.pwm.access().await;
-        pwm.set_channel_on(self.ch_a, 4095).await.unwrap();
-        pwm.set_channel_off(self.ch_a, 4095).await.unwrap();
-        pwm.set_channel_on(self.ch_b, 4095).await.unwrap();
-        pwm.set_channel_off(self.ch_b, 4095).await.unwrap();
+        pwm.set_channel_on(self.channels.0, 4095).await.unwrap();
+        pwm.set_channel_off(self.channels.0, 4095).await.unwrap();
+        pwm.set_channel_on(self.channels.1, 4095).await.unwrap();
+        pwm.set_channel_off(self.channels.1, 4095).await.unwrap();
     }
 
     /// Sets the motor speed.
@@ -68,10 +61,10 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         let (duty_a, duty_b) = if speed >= 0.0 { (duty, 0) } else { (0, duty) };
 
         let mut pwm = self.pwm.access().await;
-        pwm.set_channel_on(self.ch_a, 0).await.unwrap();
-        pwm.set_channel_off(self.ch_a, duty_a).await.unwrap();
-        pwm.set_channel_on(self.ch_b, 0).await.unwrap();
-        pwm.set_channel_off(self.ch_b, duty_b).await.unwrap();
+        pwm.set_channel_on(self.channels.0, 0).await.unwrap();
+        pwm.set_channel_off(self.channels.0, duty_a).await.unwrap();
+        pwm.set_channel_on(self.channels.1, 0).await.unwrap();
+        pwm.set_channel_off(self.channels.1, duty_b).await.unwrap();
     }
 
     /// Returns the current, unitless quadrature encoder count.

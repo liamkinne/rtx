@@ -180,13 +180,13 @@ mod app {
         let pwm = cx.local.pca9685.write(Arbiter::new(pca9685));
         let pwm_oe = Output::new(p.PE1, Level::High, Speed::Low);
 
-        let motor_zed = Motor::new(qei1, pwm, Channel::C13, Channel::C12);
-        let motor_shoulder = Motor::new(qei6, pwm, Channel::C4, Channel::C5);
-        let motor_elbow = Motor::new(qei7, pwm, Channel::C3, Channel::C2);
-        let motor_yaw = Motor::new(qei4, pwm, Channel::C6, Channel::C7);
-        let motor_wrist_1 = Motor::new(qei5, pwm, Channel::C4, Channel::C5);
-        let motor_wrist_2 = Motor::new(qei3, pwm, Channel::C2, Channel::C3);
-        let motor_grip = Motor::new(qei2, pwm, Channel::C0, Channel::C1);
+        let motor_zed = Motor::new(qei1, pwm, (Channel::C13, Channel::C12));
+        let motor_shoulder = Motor::new(qei6, pwm, (Channel::C4, Channel::C5));
+        let motor_elbow = Motor::new(qei7, pwm, (Channel::C3, Channel::C2));
+        let motor_yaw = Motor::new(qei4, pwm, (Channel::C6, Channel::C7));
+        let motor_wrist_1 = Motor::new(qei5, pwm, (Channel::C4, Channel::C5));
+        let motor_wrist_2 = Motor::new(qei3, pwm, (Channel::C2, Channel::C3));
+        let motor_grip = Motor::new(qei2, pwm, (Channel::C0, Channel::C1));
 
         let usb = hal::usb::Driver::new(p.USB, Irqs, p.PA12, p.PA11);
         let mut config = embassy_usb::Config::new(0x0483, 0x5740);
