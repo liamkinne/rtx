@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 motion.workspace = true
 nc.workspace = true
+sig.workspace = true
 defmt.workspace = true
 ufmt.workspace = true
 heapless.workspace = true

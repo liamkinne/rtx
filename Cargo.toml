@@ -1,10 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["driver", "motion", "nc"]
+members = ["driver", "motion", "nc", "sig"]
 
 [workspace.dependencies]
 motion = { path = "motion" }
 nc = { path = "nc" }
+sig = { path = "sig" }
 
 heapless = { version = "0.9.3", features = ["defmt", "ufmt"] }
 defmt = "1.1.0"
