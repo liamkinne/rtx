@@ -2,6 +2,15 @@
 
 /// Ack response.
 pub const ACK: &str = "ok\n";
+pub const STATUS_REPORT: &[u8] = &[b'?'];
+pub const BUILD_INFO: &str = "$I";
+pub const STARTUP_SHOW: &str = "$Startup/Show";
+pub const ERRORS_LIST: &str = "$Errors/List";
+pub const ALARMS_LIST: &str = "$Alarms/List";
+pub const GCODE_MODES: &str = "$GCode/Modes";
+pub const VERBOSE_ERRORS: &str = "$verbose_errors=true";
+pub const CONFIG_DUMP: &str = "$Config/Dump";
+pub const JOG_PREFIX: &str = "$J=";
 
 #[derive(Debug, defmt::Format)]
 pub enum MachineState {
