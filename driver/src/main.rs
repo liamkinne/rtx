@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod axes;
 mod gcode;
 mod motor;
 
@@ -67,7 +68,15 @@ mod app {
     type I2C = i2c::I2c<'static, Async, i2c::Master>;
 
     #[shared]
-    struct Shared {}
+    struct Shared {
+        motor_zed: Motor<'static, TIM1, I2C>,
+        motor_shoulder: Motor<'static, TIM8, I2C>,
+        motor_elbow: Motor<'static, TIM20, I2C>,
+        motor_yaw: Motor<'static, TIM4, I2C>,
+        motor_wrist_1: Motor<'static, TIM5, I2C>,
+        motor_wrist_2: Motor<'static, TIM3, I2C>,
+        motor_grip: Motor<'static, TIM2, I2C>,
+    }
 
     #[local]
     struct Local {
@@ -75,16 +84,9 @@ mod app {
         led_error: Output<'static>,
         usb_class: CdcAcmClass<'static, Driver<'static, USB>>,
         usb_device: UsbDevice<'static, Driver<'static, USB>>,
-        motor_1: Motor<'static, TIM1, I2C>,
-        motor_2: Motor<'static, TIM2, I2C>,
-        motor_3: Motor<'static, TIM3, I2C>,
-        motor_4: Motor<'static, TIM4, I2C>,
-        motor_5: Motor<'static, TIM5, I2C>,
-        motor_6: Motor<'static, TIM8, I2C>,
-        motor_7: Motor<'static, TIM20, I2C>,
         pwm_oe: Output<'static>,
         adc1: adc::RingBufferedAdc<'static, ADC1>,
-        can: can::Can<'static>,
+        _can: can::Can<'static>,
     }
 
     #[init(local = [
@@ -125,6 +127,7 @@ mod app {
         let led_error = Output::new(p.PE14, Level::Low, Speed::Low);
 
         let adc1 = adc::Adc::new(p.ADC1, adc::AdcConfig::default());
+        // not untangled yet. check phasing
         let isense_1: adc::AnyAdcChannel<'static, ADC1> = p.PB1.degrade_adc();
         let isense_2: adc::AnyAdcChannel<'static, ADC1> = p.PA3.degrade_adc();
         let isense_3: adc::AnyAdcChannel<'static, ADC1> = p.PA2.degrade_adc();
@@ -175,15 +178,15 @@ mod app {
         });
         let pca9685 = pwm_pca9685::Pca9685::new(i2c2, Address::default()).unwrap();
         let pwm = cx.local.pca9685.write(Arbiter::new(pca9685));
-        let pwm_oe = Output::new(p.PE1, Level::Low, Speed::Low);
+        let pwm_oe = Output::new(p.PE1, Level::High, Speed::Low);
 
-        let motor_1 = Motor::new(qei1, pwm, Channel::C13, Channel::C12);
-        let motor_2 = Motor::new(qei2, pwm, Channel::C10, Channel::C11);
-        let motor_3 = Motor::new(qei3, pwm, Channel::C8, Channel::C9);
-        let motor_4 = Motor::new(qei4, pwm, Channel::C6, Channel::C7);
-        let motor_5 = Motor::new(qei5, pwm, Channel::C4, Channel::C5);
-        let motor_6 = Motor::new(qei6, pwm, Channel::C2, Channel::C3);
-        let motor_7 = Motor::new(qei7, pwm, Channel::C0, Channel::C1);
+        let motor_zed = Motor::new(qei1, pwm, Channel::C13, Channel::C12);
+        let motor_shoulder = Motor::new(qei6, pwm, Channel::C4, Channel::C5);
+        let motor_elbow = Motor::new(qei7, pwm, Channel::C3, Channel::C2);
+        let motor_yaw = Motor::new(qei4, pwm, Channel::C6, Channel::C7);
+        let motor_wrist_1 = Motor::new(qei5, pwm, Channel::C4, Channel::C5);
+        let motor_wrist_2 = Motor::new(qei3, pwm, Channel::C2, Channel::C3);
+        let motor_grip = Motor::new(qei2, pwm, Channel::C0, Channel::C1);
 
         let usb = hal::usb::Driver::new(p.USB, Irqs, p.PA12, p.PA11);
         let mut config = embassy_usb::Config::new(0x0483, 0x5740);
@@ -211,24 +214,27 @@ mod app {
 
         usb::spawn().unwrap();
         gcode::spawn().unwrap();
+        motor::spawn().unwrap();
+        current::spawn().unwrap();
 
         (
-            Shared {},
+            Shared {
+                motor_zed,
+                motor_shoulder,
+                motor_elbow,
+                motor_yaw,
+                motor_wrist_1,
+                motor_wrist_2,
+                motor_grip,
+            },
             Local {
                 led_status,
                 led_error,
                 usb_class,
                 usb_device,
-                motor_1,
-                motor_2,
-                motor_3,
-                motor_4,
-                motor_5,
-                motor_6,
-                motor_7,
                 pwm_oe,
                 adc1,
-                can,
+                _can: can,
             },
         )
     }
@@ -257,7 +263,56 @@ mod app {
     }
 
     extern "Rust" {
-        #[task(local = [usb_class, packet: [u8; 64] = [0; _]])]
+        #[task(
+            local = [
+                usb_class,
+                packet: [u8; 64] = [0; _]
+            ],
+            shared = [
+                &motor_zed,
+                &motor_shoulder,
+                &motor_elbow,
+                &motor_yaw,
+                &motor_wrist_1,
+                &motor_wrist_2,
+                &motor_grip,
+            ]
+        )]
         async fn gcode(cx: gcode::Context);
+    }
+
+    #[task(local = [
+        pwm_oe,
+    ], shared = [
+        &motor_zed,
+        &motor_shoulder,
+        &motor_elbow,
+        &motor_yaw,
+        &motor_wrist_1,
+        &motor_wrist_2,
+        &motor_grip,
+    ])]
+    async fn motor(cx: motor::Context) {
+        cx.shared.motor_zed.setup().await;
+        cx.shared.motor_shoulder.setup().await;
+        cx.shared.motor_elbow.setup().await;
+        cx.shared.motor_yaw.setup().await;
+        cx.shared.motor_wrist_1.setup().await;
+        cx.shared.motor_wrist_2.setup().await;
+        cx.shared.motor_grip.setup().await;
+        cx.local.pwm_oe.set_low(); // enable outputs
+
+        loop {
+            cx.shared.motor_zed.position();
+        }
+    }
+
+    #[task(local = [adc1])]
+    async fn current(cx: current::Context) {
+        let mut data = [0u16; 7];
+        loop {
+            let _ = cx.local.adc1.read_latest(&mut data);
+            Mono::delay(1.millis()).await;
+        }
     }
 }
