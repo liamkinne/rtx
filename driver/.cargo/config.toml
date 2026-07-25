@@ -1,6 +1,15 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip STM32G474VETx --allow-erase-all"
-rustflags = ["-C", "link-arg=-nmagic", "-C", "link-arg=-Tlink.x", "-C", "link-arg=-Tdefmt.x"]
+runner = "./run.sh"
+rustflags = [
+  "-C",
+  "link-arg=-nmagic",
+  "-C",
+  "link-arg=-Tlink.x",
+  "-C",
+  "link-arg=-Tdevis.x",
+  "-C",
+  "link-arg=-Tdefmt.x",
+]
 
 [build]
 target = "thumbv7em-none-eabihf"

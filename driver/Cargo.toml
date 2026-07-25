@@ -10,7 +10,6 @@ sig.workspace = true
 defmt.workspace = true
 ufmt.workspace = true
 heapless.workspace = true
-defmt-rtt = "1.2.0"
 rtic = { version = "2.2.0", features = ["thumbv7-backend"] }
 rtic-monotonics = { version = "2.1.0", features = ["cortex-m-systick", "defmt"] }
 rtic-sync = { version = "1.5.0", features = ["defmt-03"] }
@@ -27,3 +26,5 @@ pwm-pca9685 = { version = "1.0.0", features = ["async"] }
 embedded-hal-async = "1.0.0"
 gcode = { version = "0.7.0", default-features = false }
 num-traits = { version = "0.2.19", default-features = false }
+devis = { git = "https://github.com/umi-eng/devis", version = "0.1.0" }
+devis-rtt = { git = "https://github.com/umi-eng/devis", version = "0.1.0", features = ["defmt"] }

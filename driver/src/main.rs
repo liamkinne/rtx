@@ -5,7 +5,6 @@ mod axes;
 mod gcode;
 mod motor;
 
-use defmt_rtt as _;
 use embassy_stm32 as hal;
 use panic_probe as _;
 
@@ -98,6 +97,8 @@ mod app {
         adc1_dma_buf: [u16; ADC_BUFFERS] = [0; _],
     ])]
     fn init(cx: init::Context) -> (Shared, Local) {
+        devis_rtt::init();
+
         let mut config = hal::Config::default();
         {
             use embassy_stm32::rcc::*;
@@ -122,6 +123,8 @@ mod app {
         let p = hal::init(config);
 
         Mono::start(cx.core.SYST, 160_000_000);
+
+        devis::set_timestamp_provider(|| Mono::now().duration_since_epoch().to_micros() as u64);
 
         let led_status = Output::new(p.PE15, Level::Low, Speed::Low);
         let led_error = Output::new(p.PE14, Level::Low, Speed::Low);
