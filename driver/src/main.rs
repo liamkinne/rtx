@@ -183,7 +183,7 @@ mod app {
         let pwm = cx.local.pca9685.write(Arbiter::new(pca9685));
         let pwm_oe = Output::new(p.PE1, Level::High, Speed::Low);
 
-        let motor_zed = Motor::new(qei1, pwm, (Channel::C13, Channel::C12));
+        let motor_zed = Motor::new(qei1, pwm, (Channel::C12, Channel::C13));
         let motor_shoulder = Motor::new(qei6, pwm, (Channel::C4, Channel::C5));
         let motor_elbow = Motor::new(qei7, pwm, (Channel::C3, Channel::C2));
         let motor_yaw = Motor::new(qei4, pwm, (Channel::C6, Channel::C7));
