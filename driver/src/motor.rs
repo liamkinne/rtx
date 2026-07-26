@@ -17,9 +17,9 @@ pub struct Motor<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> {
 
 impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
     /// The period between control loop iterations, in milliseconds.
-    const CONTROL_PERIOD_MS: u32 = 10;
+    const CONTROL_PERIOD_MS: u32 = 2;
     /// Setpoint tolerance.
-    const TOLERANCE: u32 = 5;
+    const TOLERANCE: u16 = 5;
 
     /// Creates a new motor instance.
     pub fn new(
@@ -30,6 +30,9 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         Self { qei, pwm, channels }
     }
 
+    /// Setup the PWM outputs.
+    ///
+    /// Do this before making any movements.
     pub async fn setup(&self) {
         let mut pwm = self.pwm.access().await;
         pwm.set_prescale(100).await.unwrap();
@@ -40,6 +43,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         pwm.set_channel_off(self.channels.1, 0).await.unwrap();
     }
 
+    /// Put the driver into the braking state.
     pub async fn brake(&self) {
         let mut pwm = self.pwm.access().await;
         pwm.set_channel_on(self.channels.0, 4095).await.unwrap();
@@ -50,9 +54,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
 
     /// Sets the motor speed.
     ///
-    /// `speed` is clamped to `[-1.0, 1.0]`, where positive values drive the
-    /// motor forward (channel A) and negative values drive it in reverse
-    /// (channel B).
+    /// `speed` is clamped to `[-1.0, 1.0]`.
     pub async fn set(&self, speed: f32) {
         const MAX_DUTY: f32 = 4095.0;
 
@@ -69,7 +71,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
 
     /// Returns the current, unitless quadrature encoder count.
     pub fn position(&self) -> i16 {
-        // use as signed so we're centred around zero.
+        // as signed to be centred around zero.
         self.qei.count() as i16
     }
 
@@ -78,19 +80,7 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         self.qei.reset();
     }
 
-    /// Drives the motor to `setpoint` (an absolute encoder count) using a
-    /// PID control loop fed by the quadrature encoder.
-    ///
-    /// `gains` configures the PID controller, `max_speed` caps the magnitude
-    /// of the speed passed to [`Motor::set`] (clamped to `[0.0, 1.0]`), and
-    /// `tolerance` is the number of encoder counts within which the
-    /// setpoint is considered reached.
-    ///
-    /// `invert` flips the sign of the control output before it's applied to
-    /// [`Motor::set`]. This is useful when the encoder's counting direction
-    /// is opposite to the motor's wiring polarity for a given motor, so a
-    /// positive PID output would otherwise drive the position further from
-    /// (rather than towards) the setpoint.
+    /// Drives the motor to setpoint absolute encoder count.
     pub async fn run_to_position(&self, setpoint: i16, gains: motion::pid::Gains, max_speed: f32) {
         let dt_secs = Self::CONTROL_PERIOD_MS as f32 / 1000.0;
 
@@ -98,24 +88,12 @@ impl<'d, T: GeneralInstance4Channel, I2C: AsyncI2c> Motor<'d, T, I2C> {
         let mut pid = motion::pid::Pid::new(gains);
 
         loop {
-            let position = self.qei.count() as i16;
-            // The QEI counter is a free-running 16-bit counter that wraps
-            // around (both forwards and backwards). Computing a plain
-            // `setpoint - position` difference breaks down across a wrap
-            // boundary, producing a huge error and driving the motor the
-            // long way around. Instead, take the wrapping difference in
-            // `u16` space and reinterpret it as a signed `i16`, which
-            // yields the shortest signed distance (in `[-32768, 32767]`)
-            // from `position` to `setpoint` around the 16-bit circle.
-            let error = setpoint.wrapping_sub(position) as i32;
-
+            let error = setpoint.wrapping_sub(self.position());
             if error.unsigned_abs() <= Self::TOLERANCE {
                 break;
             }
-
             let output = pid.update(error as f32, dt_secs);
             self.set(output.clamp(-max_speed, max_speed)).await;
-
             Mono::delay(Self::CONTROL_PERIOD_MS.millis()).await;
         }
 
