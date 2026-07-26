@@ -313,9 +313,23 @@ mod app {
     #[task(local = [adc1])]
     async fn current(cx: current::Context) {
         let mut data = [0u16; 7];
+
+        let vref = 3.3;
+        let full_scale = 4095.0;
+        let to_volts = |count| (count as f32 / full_scale) * vref;
+        let to_amps_zed = |input| (to_volts(input) / 560.0) * 1575.0;
+        let to_amps = |input| (to_volts(input) / 1000.0) * 1575.0;
+
         loop {
             let _ = cx.local.adc1.read_latest(&mut data);
-            Mono::delay(1.millis()).await;
+            devis::scalar!("motor/current/zed", to_amps_zed(data[0]));
+            devis::scalar!("motor/current/shoulder", to_amps(data[1]));
+            devis::scalar!("motor/current/elbow", to_amps(data[2]));
+            devis::scalar!("motor/current/yaw", to_amps(data[3]));
+            devis::scalar!("motor/current/wrist_1", to_amps(data[4]));
+            devis::scalar!("motor/current/wrist_2", to_amps(data[5]));
+            devis::scalar!("motor/current/grip", to_amps(data[6]));
+            Mono::delay(2.millis()).await;
         }
     }
 }
